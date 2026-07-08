@@ -1,0 +1,99 @@
+// 💡 What is this file?
+// This is the Prisma Schema. It's like a blueprint for your database.
+// Prisma reads this file and creates the actual SQL tables for you.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// We are using PostgreSQL. Supabase provides these connection strings.
+// url: used for normal queries.
+// directUrl: used for running migrations (changing the table structure).
+datasource db {
+  provider  = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS (Predefined lists of allowed values)
+// -----------------------------------------------------------------------------
+
+// What is an Enum? 
+// Analogy: Like a dropdown menu. You can only pick one of these exact options.
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum ComplianceStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+// -----------------------------------------------------------------------------
+// MODELS (These become tables in your database)
+// -----------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(uuid()) // Unique ID automatically generated
+  name      String
+  email     String   @unique              // No two users can have the same email
+  password  String                        // Hashed password (never plain text!)
+  role      Role     @default(EMPLOYEE)   // Default role for new users
+  
+  // Relations: A user can be assigned multiple compliance records
+  assignedRecords ComplianceRecord[]
+
+  createdAt DateTime @default(now())      // Auto-filled when created
+  updatedAt DateTime @updatedAt           // Auto-updated when changed
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  
+  // Relations: A department has multiple compliance records
+  records   ComplianceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ComplianceRecord {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?  // The '?' means this field is optional
+  status        ComplianceStatus @default(PENDING)
+  
+  dueDate       DateTime
+  completedDate DateTime? // Only filled when status changes to COMPLETED
+
+  // Relation to Department
+  // departmentId stores the ID, department links to the actual object
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+
+  // Relation to User (the person responsible)
+  assignedToId  String
+  assignedTo    User       @relation(fields: [assignedToId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model EmailLog {
+  id          String   @id @default(uuid())
+  weekStart   DateTime // The start date of the report week
+  weekEnd     DateTime // The end date of the report week
+  recipient   String   // The email address that received the report
+  subject     String   
+  status      EmailStatus
+  sentAt      DateTime @default(now())
+  
+  createdAt   DateTime @default(now())
+}
