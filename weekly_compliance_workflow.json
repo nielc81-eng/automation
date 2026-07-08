@@ -26,8 +26,19 @@
         "method": "POST",
         "url": "https://automation-production-cc6c.up.railway.app/api/auth/login",
         "sendBody": true,
-        "contentType": "json",
-        "body": "={\n  \"email\": \"admin@company.com\",\n  \"password\": \"password123\"\n}",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "nielcruz035@gmail.com"
+            },
+            {
+              "name": "password",
+              "value": "YourChosenPassword"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "a1b2c3d4-0002-0002-0002-000000000002",
@@ -101,8 +112,31 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": "={\n  \"weekStart\": \"{{ $node['Code'].json.weekStart }}\",\n  \"weekEnd\": \"{{ $node['Code'].json.weekEnd }}\",\n  \"recipient\": \"{{ $node['Code'].json.toEmails }}\",\n  \"subject\": \"Weekly Compliance Report\",\n  \"status\": \"SENT\"\n}",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "weekStart",
+              "value": "={{ $node['Code'].json.weekStart }}"
+            },
+            {
+              "name": "weekEnd",
+              "value": "={{ $node['Code'].json.weekEnd }}"
+            },
+            {
+              "name": "recipient",
+              "value": "={{ $node['Code'].json.toEmails }}"
+            },
+            {
+              "name": "subject",
+              "value": "Weekly Compliance Report"
+            },
+            {
+              "name": "status",
+              "value": "SENT"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "a1b2c3d4-0006-0006-0006-000000000006",
