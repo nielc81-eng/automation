@@ -1,0 +1,9 @@
+{
+  "name": "n8n-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install && npx prisma generate && npx tsc",
+    "start": "cd backend && node dist/server.js"
+  }
+}
