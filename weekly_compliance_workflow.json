@@ -1,0 +1,177 @@
+{
+  "name": "Weekly Compliance Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://automation-production-cc6c.up.railway.app/api/auth/login",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"email\": \"admin@company.com\",\n  \"password\": \"password123\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://automation-production-cc6c.up.railway.app/api/reports/weekly",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Login'].json.data.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Fetch Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json.data;\n\nlet html = `\n  <h2 style=\"font-family:sans-serif;\">📋 Weekly Compliance Report</h2>\n  <p style=\"font-family:sans-serif;\"><strong>Period:</strong> ${new Date(data.period.start).toLocaleDateString()} to ${new Date(data.period.end).toLocaleDateString()}</p>\n  <ul style=\"font-family:sans-serif;\">\n    <li>📊 Total Records: ${data.stats.total}</li>\n    <li>✅ Completed: ${data.stats.completed}</li>\n    <li>⏳ Pending: ${data.stats.pending}</li>\n    <li style=\"color:red;\">🚨 Overdue: ${data.stats.overdue}</li>\n  </ul>\n  <table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"font-family:sans-serif;border-collapse:collapse;width:100%\">\n    <tr style=\"background:#f0f0f0;\">\n      <th>Title</th>\n      <th>Department</th>\n      <th>Assignee</th>\n      <th>Status</th>\n      <th>Due Date</th>\n    </tr>\n`;\n\ndata.records.forEach(r => {\n  const color = r.status === 'OVERDUE' ? 'red' : (r.status === 'COMPLETED' ? 'green' : 'orange');\n  html += `\n    <tr>\n      <td>${r.title}</td>\n      <td>${r.department}</td>\n      <td>${r.assignee}</td>\n      <td style=\"color:${color};font-weight:bold;\">${r.status}</td>\n      <td>${new Date(r.dueDate).toLocaleDateString()}</td>\n    </tr>\n  `;\n});\n\nhtml += `</table>`;\n\nreturn {\n  htmlContent: html,\n  toEmails: data.adminEmails.join(', '),\n  weekStart: data.period.start,\n  weekEnd: data.period.end\n};"
+      },
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $node['Code'].json.toEmails }}",
+        "subject": "Weekly Compliance Report",
+        "emailType": "html",
+        "message": "={{ $node['Code'].json.htmlContent }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1120, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://automation-production-cc6c.up.railway.app/api/emaillogs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['Login'].json.data.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"weekStart\": \"{{ $node['Code'].json.weekStart }}\",\n  \"weekEnd\": \"{{ $node['Code'].json.weekEnd }}\",\n  \"recipient\": \"{{ $node['Code'].json.toEmails }}\",\n  \"subject\": \"Weekly Compliance Report\",\n  \"status\": \"SENT\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "Log Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login": {
+      "main": [
+        [
+          {
+            "node": "Fetch Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Report": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail": {
+      "main": [
+        [
+          {
+            "node": "Log Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

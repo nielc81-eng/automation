@@ -1,55 +1,84 @@
-# n8n Automation Setup Guide
+# n8n Automation Setup Guide (Full Automation Version)
 
-As your instructor, I'm going to walk you through how to connect our new Node.js backend to your self-hosted n8n instance. 
+This is the **fully automated** version of the workflow. You no longer need to manually paste tokens or hardcode email addresses. Every time this workflow runs, it logs itself in, gets its own fresh token, fetches the report (which includes the recipient emails from the database), sends the email, and logs the result — all automatically.
 
-Our goal is to create a workflow that runs every week, fetches the compliance report from our backend, formats it nicely, emails it via Gmail, and then logs the result back to our backend.
+---
 
-## Step 1: Create a New Workflow in n8n
+## The Full Workflow (5 Nodes)
 
-1. Log into your n8n instance.
-2. Click **Add Workflow** on the top right.
-3. Name it "Weekly Compliance Report".
+```
+Schedule Trigger → Login → Fetch Report → Code → Gmail → Log Result
+```
 
-## Step 2: The Trigger (Cron Node)
+---
 
-We want this to run automatically every week.
+## Node 1: Schedule Trigger
+
 1. Add a **Schedule Trigger** node.
-2. Set the **Trigger Interval** to `Weeks`.
-3. Set the time to something like Monday at 9:00 AM.
-4. This node will start the whole process!
+2. Set **Trigger Interval** to `Weeks`.
+3. Set the time to **Monday at 9:00 AM** (or whatever you prefer).
 
-## Step 3: Fetch the Report (HTTP Request Node)
+---
 
-We need to get the data from our backend (`/api/reports/weekly`).
-1. Add an **HTTP Request** node.
+## Node 2: Login (HTTP Request)
+
+This node logs in as the admin automatically and gets a fresh token. No more manual copy-pasting!
+
+1. Add an **HTTP Request** node. Name it `Login`.
+2. **Method**: `POST`
+3. **URL**: `https://automation-production-cc6c.up.railway.app/api/auth/login`
+4. **Body Content Type**: `JSON`
+5. **Specify Body**: `Using JSON`
+6. **Body**:
+```json
+{
+  "email": "admin@company.com",
+  "password": "password123"
+}
+```
+7. **No authentication needed on this node** — it's the login endpoint itself.
+
+> 💡 **What this returns:** A JSON object with `data.token` — the fresh JWT token the next nodes will use.
+
+---
+
+## Node 3: Fetch Report (HTTP Request)
+
+1. Add an **HTTP Request** node. Name it `Fetch Report`.
 2. **Method**: `GET`
-3. **URL**: `https://your-railway-url.app/api/reports/weekly` (Replace with your actual Railway URL once deployed, or `http://localhost:3000/api/reports/weekly` for local testing).
-4. **Authentication**: 
-   - We secured this endpoint with `requireAdmin`. You will need to pass an Admin's JWT token.
-   - Go to "Authentication" -> "Generic Credential Type" -> "Header Auth".
-   - Name: `Authorization`
-   - Value: `Bearer <your_admin_jwt_token>` (You can get this by logging in via Postman).
+3. **URL**: `https://automation-production-cc6c.up.railway.app/api/reports/weekly`
+4. **Authentication**: `Generic Credential Type` → `Header Auth`
+5. Create a **new credential**:
+   - **Name**: `Authorization`
+   - **Value**: (Leave blank for now — we will override it with an expression)
+6. After saving, go back to the node and look for **"Send Headers"** or **"Header Parameters"** option. Switch to **"Specify Headers"** → **"Using Fields"**.
+7. Add one header:
+   - **Name**: `Authorization`
+   - **Value**: (click the gears ⚙️ → Expression) `Bearer {{ $node['Login'].json.data.token }}`
 
-## Step 4: Format the Data (Code Node)
+> 💡 **What this returns:** The full weekly report, now including `data.adminEmails` — an array of all admin email addresses from your database!
 
-The data comes back as JSON, but we want a beautiful HTML email.
-1. Add a **Code** node (JavaScript).
-2. Use this script to convert the JSON data into an HTML table:
+---
+
+## Node 4: Code
+
+1. Add a **Code** node. Name it `Code`.
+2. Paste in this JavaScript exactly:
 
 ```javascript
 const data = $input.item.json.data;
 
 let html = `
-  <h2>Weekly Compliance Report</h2>
-  <p><strong>Period:</strong> ${data.period.start} to ${data.period.end}</p>
-  <ul>
-    <li>Total Records: ${data.stats.total}</li>
-    <li>Completed: ${data.stats.completed}</li>
-    <li>Pending: ${data.stats.pending}</li>
-    <li style="color:red;">Overdue: ${data.stats.overdue}</li>
+  <h2 style="font-family:sans-serif;">📋 Weekly Compliance Report</h2>
+  <p style="font-family:sans-serif;"><strong>Period:</strong> ${new Date(data.period.start).toLocaleDateString()} to ${new Date(data.period.end).toLocaleDateString()}</p>
+  <ul style="font-family:sans-serif;">
+    <li>📊 Total Records: ${data.stats.total}</li>
+    <li>✅ Completed: ${data.stats.completed}</li>
+    <li>⏳ Pending: ${data.stats.pending}</li>
+    <li style="color:red;">🚨 Overdue: ${data.stats.overdue}</li>
   </ul>
-  <table border="1" cellpadding="5" cellspacing="0">
-    <tr>
+  <table border="1" cellpadding="8" cellspacing="0" style="font-family:sans-serif;border-collapse:collapse;width:100%">
+    <tr style="background:#f0f0f0;">
       <th>Title</th>
       <th>Department</th>
       <th>Assignee</th>
@@ -65,7 +94,7 @@ data.records.forEach(r => {
       <td>${r.title}</td>
       <td>${r.department}</td>
       <td>${r.assignee}</td>
-      <td style="color:${color}">${r.status}</td>
+      <td style="color:${color};font-weight:bold;">${r.status}</td>
       <td>${new Date(r.dueDate).toLocaleDateString()}</td>
     </tr>
   `;
@@ -75,38 +104,72 @@ html += `</table>`;
 
 return {
   htmlContent: html,
+  // Join all admin emails into one comma-separated string for the Gmail "To" field
+  toEmails: data.adminEmails.join(', '),
   weekStart: data.period.start,
   weekEnd: data.period.end
 };
 ```
 
-## Step 5: Send the Email (Gmail Node)
+---
 
-1. Add the **Gmail** node.
-2. **Resource**: Message
-3. **Operation**: Send
-4. **Credential**: You will need to create a Gmail OAuth2 credential in n8n. Follow the n8n docs to connect your Google Cloud Console to n8n.
-5. **To Email**: Enter the recipient email (e.g., the manager's email).
-6. **Subject**: `Weekly Compliance Report`
-7. **Message**: Click the gear icon, set "Is HTML" to `true`.
-8. Bind the Message field to the output of our Code node: `{{ $json.htmlContent }}`.
+## Node 5: Gmail
 
-## Step 6: Log the Result (HTTP Request Node)
+1. Add a **Gmail** node.
+2. **Resource**: `Message`
+3. **Operation**: `Send`
+4. **To** field: click the gears ⚙️ → Expression → `{{ $node['Code'].json.toEmails }}`
+5. **Subject**: `Weekly Compliance Report`
+6. **Message**: click the gears ⚙️ → Expression → `{{ $node['Code'].json.htmlContent }}`
+7. Tick the **"HTML"** toggle to `true` so the email renders as HTML.
 
-We want our backend to know if the email succeeded.
-1. Add another **HTTP Request** node.
+> 💡 The `toEmails` value comes directly from your database. Register a new admin user and they are automatically on the mailing list!
+
+---
+
+## Node 6: Log Result (HTTP Request)
+
+1. Add a final **HTTP Request** node. Name it `Log Result`.
 2. **Method**: `POST`
-3. **URL**: `https://your-railway-url.app/api/emaillogs`
-4. **Authentication**: Use the same Header Auth (Admin Token) as before.
-5. **Send Body**: `true`
-6. **Body Content Type**: `JSON`
-7. In the Body Parameters, pass:
-   - `weekStart`: `{{ $node["Code"].json.weekStart }}`
-   - `weekEnd`: `{{ $node["Code"].json.weekEnd }}`
-   - `recipient`: The manager's email you used.
-   - `subject`: `Weekly Compliance Report`
-   - `status`: `SENT` (You can also add an Error Trigger node to catch errors and log `FAILED`).
+3. **URL**: `https://automation-production-cc6c.up.railway.app/api/emaillogs`
+4. **Specify Headers** → Add one:
+   - **Name**: `Authorization`
+   - **Value** (Expression): `Bearer {{ $node['Login'].json.data.token }}`
+5. **Body Content Type**: `JSON`
+6. **Specify Body**: `Using JSON`
+7. **Body**:
+```json
+{
+  "weekStart": "{{ $node['Code'].json.weekStart }}",
+  "weekEnd": "{{ $node['Code'].json.weekEnd }}",
+  "recipient": "{{ $node['Code'].json.toEmails }}",
+  "subject": "Weekly Compliance Report",
+  "status": "SENT"
+}
+```
+
+---
+
+## Registering Your Own Account
+
+Hit this endpoint in **Postman** to create your personal account:
+
+- **URL**: `https://automation-production-cc6c.up.railway.app/api/auth/register`
+- **Method**: `POST`
+- **Body (JSON)**:
+```json
+{
+  "name": "Your Name",
+  "email": "nielcruz035@gmail.com",
+  "password": "YourChosenPassword",
+  "role": "ADMIN"
+}
+```
+
+Once registered, your email (`nielcruz035@gmail.com`) will automatically appear in the `adminEmails` array returned by the report. The next time the n8n workflow runs, it will send the report to your Gmail with **zero manual configuration**.
+
+---
 
 ## Step 7: Activate!
 
-Toggle the workflow to **Active** (top right corner). You're all set!
+Toggle the workflow to **Active** in the top-right corner. You're done! 🎉

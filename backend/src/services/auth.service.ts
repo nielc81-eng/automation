@@ -54,4 +54,56 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Registers a new user.
+   * It hashes their password before saving to the database.
+   * Analogy: Like filling out a membership form. We take your details,
+   * shred the plain-text password, and store only the scrambled version.
+   */
+  static async register(
+    name: string,
+    email: string,
+    password: string,
+    role: 'ADMIN' | 'EMPLOYEE' = 'EMPLOYEE' // Default role is EMPLOYEE
+  ) {
+    // 1. Check if a user with this email already exists
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      const error: any = new Error('Email already in use');
+      error.statusCode = 409; // 409 = Conflict
+      throw error;
+    }
+
+    // 2. Hash the plain-text password before saving
+    // The "10" is the number of salt rounds — more rounds = more secure but slower
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 3. Create the new user in the database
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+    });
+
+    // 4. Immediately generate a token so they are logged in after registering
+    const token = jwt.sign(
+      { id: newUser.id, role: newUser.role },
+      env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    return {
+      token,
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role,
+      },
+    };
+  }
 }

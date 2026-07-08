@@ -53,7 +53,7 @@ By default, Railway apps are private. Let's get a public URL.
 2. Look for the **Domains** section.
 3. Click **Generate Domain**. Railway will give you a free `.up.railway.app` URL. 
 
-*You will use this URL in your n8n setup! (e.g., `https://your-project-name.up.railway.app/api/reports/weekly`)*
+*You will use this URL in your n8n setup! (e.g., `https://automation-production-cc6c.up.railway.app/api/reports/weekly`)*
 
 ## Step 5: Wait for Deploy
 
@@ -63,4 +63,4 @@ By default, Railway apps are private. Let's get a public URL.
    - Did it fail on the environment variables? Double-check them!
    - Did it fail on Prisma? Make sure your `DIRECT_URL` allows port 5432.
 
-Once it says "Active" with a green checkmark, you're live! 🎉 You can test it by going to `https://your-project-name.up.railway.app/` in your browser. (Since we don't have a route on `/`, it might say "Cannot GET /", but that means Express is running!). Use Postman to hit your `/api/auth/login` endpoint.
+Once it says "Active" with a green checkmark, you're live! 🎉 You can test it by going to `https://automation-production-cc6c.up.railway.app/` in your browser. (Since we don't have a route on `/`, it might say "Cannot GET /", but that means Express is running!). Use Postman to hit your `/api/auth/login` endpoint.
